@@ -75,8 +75,9 @@ class EcobeeComfortStartTime(EcobeeBaseEntity, TimeEntity):
         """Initialize a comfort setting start time."""
         super().__init__(data, thermostat_index)
         self.climate_ref = climate_ref
-        self._attr_name = f"{climate_name} Start Time"
+        self._attr_name = "Start Time"
         self._attr_unique_id = f"{self.base_unique_id}_comfort_{climate_ref}_start_time"
+        self._attr_device_info = self._comfort_device_info(climate_ref, climate_name)
         self.update_without_throttle = False
 
     async def async_update(self) -> None:

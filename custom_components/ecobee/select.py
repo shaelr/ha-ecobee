@@ -49,8 +49,9 @@ class EcobeeComfortFanMode(EcobeeBaseEntity, SelectEntity):
         """Initialize a comfort setting fan mode select."""
         super().__init__(data, thermostat_index)
         self.climate_ref = climate_ref
-        self._attr_name = f"{climate_name} Fan"
+        self._attr_name = "Fan"
         self._attr_unique_id = f"{self.base_unique_id}_comfort_{climate_ref}_fan_mode"
+        self._attr_device_info = self._comfort_device_info(climate_ref, climate_name)
         self.update_without_throttle = False
 
     def _climate(self) -> dict:

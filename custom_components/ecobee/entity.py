@@ -35,6 +35,23 @@ class EcobeeBaseEntity(Entity):
         """Return the thermostat data for the entity."""
         return self.data.ecobee.get_thermostat(self.thermostat_index)
 
+    def _comfort_device_info(self, climate_ref: str, climate_name: str) -> DeviceInfo:
+        """Return device info for a comfort setting's sub-device.
+
+        Groups all entities for one comfort setting (Home/Away/Sleep/custom)
+        under their own device, nested under the thermostat via
+        ``via_device``, so dashboards render each comfort setting as its own
+        clearly separated card instead of one flat list mixing every comfort
+        setting's temps and fan mode together.
+        """
+        thermostat = self.thermostat
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{thermostat['identifier']}_comfort_{climate_ref}")},
+            manufacturer=MANUFACTURER,
+            name=f"{thermostat['name']} {climate_name}",
+            via_device=(DOMAIN, thermostat["identifier"]),
+        )
+
     @property
     @override
     def available(self) -> bool:
