@@ -309,12 +309,18 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
     @override
     def set_native_value(self, value: float) -> None:
         """Set new comfort setting temperature."""
+        step = self._attr_native_step
+        rounded = round(value / step) * step
         fahrenheit = TemperatureConverter.convert(
-            value, self.native_unit_of_measurement, UnitOfTemperature.FAHRENHEIT
+            rounded, self.native_unit_of_measurement, UnitOfTemperature.FAHRENHEIT
         )
         heat_temp = fahrenheit if self.field == "heatTemp" else None
         cool_temp = fahrenheit if self.field == "coolTemp" else None
         self.data.ecobee.set_climate_temperatures(
             self.thermostat_index, self.climate_ref, heat_temp=heat_temp, cool_temp=cool_temp
         )
+        # Show the rounded value immediately instead of leaving the stale
+        # pre-edit reading on screen until the next poll completes.
+        self._attr_native_value = rounded
         self.update_without_throttle = True
+        self.schedule_update_ha_state()
