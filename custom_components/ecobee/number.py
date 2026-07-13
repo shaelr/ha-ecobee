@@ -295,9 +295,16 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
         climate = self._climate()
         if self.field in climate:
             fahrenheit = climate[self.field] / 10
-            self._attr_native_value = TemperatureConverter.convert(
+            converted = TemperatureConverter.convert(
                 fahrenheit, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
             )
+            # ecobee stores in Fahrenheit tenths, so a value that started as
+            # a clean 0.5-in-some-other-unit setting (e.g. set on the
+            # thermostat itself while displaying Celsius) doesn't necessarily
+            # round-trip back to a clean multiple of native_step -- round to
+            # the nearest step so the box shows 23.5, not 23.5555555555556.
+            step = self._attr_native_step
+            self._attr_native_value = round(converted / step) * step
 
     @override
     def set_native_value(self, value: float) -> None:
