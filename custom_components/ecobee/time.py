@@ -57,6 +57,12 @@ def _first_transition_slot(day_slots: list[str], climate_ref: str) -> int | None
     return None
 
 
+def _slot_to_time(slot: int) -> time_:
+    """Convert a half-hour slot index to a clock time."""
+    minutes = slot * SLOT_MINUTES
+    return time_(hour=minutes // 60, minute=minutes % 60)
+
+
 class EcobeeComfortStartTime(EcobeeBaseEntity, TimeEntity):
     """The clock time a comfort setting's daily block begins, applied to every day.
 
@@ -92,11 +98,7 @@ class EcobeeComfortStartTime(EcobeeBaseEntity, TimeEntity):
 
         day_slots = self.thermostat["program"]["schedule"][0]
         slot = _first_transition_slot(day_slots, self.climate_ref)
-        if slot is None:
-            self._attr_native_value = None
-            return
-        minutes = slot * SLOT_MINUTES
-        self._attr_native_value = time_(hour=minutes // 60, minute=minutes % 60)
+        self._attr_native_value = None if slot is None else _slot_to_time(slot)
 
     @override
     def set_value(self, value: time_) -> None:
@@ -104,7 +106,13 @@ class EcobeeComfortStartTime(EcobeeBaseEntity, TimeEntity):
         new_slot = (value.hour * 60 + value.minute) // SLOT_MINUTES
         for day_index in range(NUM_SCHEDULE_DAYS):
             self._move_start(day_index, new_slot)
+        # set_schedule_slots already mutates the local thermostat cache in
+        # place, so reflect it immediately instead of waiting for the next
+        # poll. Show the slot-aligned time (e.g. a submitted 6:37 becomes
+        # 6:30), matching what was actually applied to the 30-minute grid.
+        self._attr_native_value = _slot_to_time(new_slot)
         self.update_without_throttle = True
+        self.schedule_update_ha_state()
 
     def _move_start(self, day_index: int, new_slot: int) -> None:
         """Move the block boundary for this comfort setting on one day.

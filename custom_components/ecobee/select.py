@@ -77,4 +77,9 @@ class EcobeeComfortFanMode(EcobeeBaseEntity, SelectEntity):
         self.data.ecobee.set_climate_fan_mode(
             self.thermostat_index, self.climate_ref, option
         )
+        # set_climate_fan_mode already mutates the local thermostat cache in
+        # place, so reflect it immediately instead of waiting for the next
+        # poll to catch up.
+        self._attr_current_option = option
         self.update_without_throttle = True
+        self.schedule_update_ha_state()

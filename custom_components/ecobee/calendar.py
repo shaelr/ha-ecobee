@@ -203,7 +203,11 @@ class EcobeeScheduleCalendar(EcobeeBaseEntity, CalendarEntity):
                 end_slot,
                 climate_ref,
             )
-        await self.data.update(no_throttle=True)
+        # set_schedule_slots already mutates the local thermostat cache in
+        # place before POSTing, so the new schedule is available immediately
+        # with no network round trip. Explicitly re-fetching here would risk
+        # racing ecobee's own eventual consistency and momentarily showing
+        # the stale pre-edit schedule instead.
         self.async_write_ha_state()
 
     @override

@@ -534,8 +534,6 @@ class Thermostat(ClimateEntity):
         if preset_mode == self.preset_mode:
             return
 
-        self.update_without_throttle = True
-
         # If we are currently in vacation mode, cancel it.
         if self.preset_mode == PRESET_VACATION:
             self.data.ecobee.delete_vacation(self.thermostat_index, self.vacation)
@@ -574,6 +572,8 @@ class Thermostat(ClimateEntity):
                 self.hold_hours(),
             )
 
+        self._refresh_after_write()
+
     @property
     @override
     def preset_modes(self) -> list[str] | None:
@@ -592,6 +592,20 @@ class Thermostat(ClimateEntity):
             comfort["climateRef"]: comfort["name"]
             for comfort in self.thermostat["program"]["climates"]
         }
+
+    def _refresh_after_write(self) -> None:
+        """Force an immediate un-throttled refresh after a write.
+
+        Unlike the comfort-setting/schedule pyecobee methods, the setters
+        this entity calls (set_hold_temp, set_hvac_mode, etc.) don't mutate
+        the local thermostat cache -- they only POST -- so there's no local
+        value to reflect immediately. Instead, force HA to poll right now
+        (bypassing update_without_throttle's usual wait for the next
+        scheduled poll) rather than leaving the stale pre-write reading on
+        screen for up to a full poll interval.
+        """
+        self.update_without_throttle = True
+        self.schedule_update_ha_state(force_refresh=True)
 
     def set_auto_temp_hold(self, heat_temp, cool_temp):
         """Set temperature hold in auto mode."""
@@ -620,7 +634,7 @@ class Thermostat(ClimateEntity):
             isinstance(cool_temp, (int, float)),
         )
 
-        self.update_without_throttle = True
+        self._refresh_after_write()
 
     @override
     def set_fan_mode(self, fan_mode: str) -> None:
@@ -638,6 +652,7 @@ class Thermostat(ClimateEntity):
         )
 
         _LOGGER.debug("Setting fan mode to: %s", fan_mode)
+        self._refresh_after_write()
 
     def set_temp_hold(self, temp):
         """Set temperature hold in modes other than auto.
@@ -684,7 +699,7 @@ class Thermostat(ClimateEntity):
             )
 
         self.data.ecobee.set_humidity(self.thermostat_index, int(humidity))
-        self.update_without_throttle = True
+        self._refresh_after_write()
 
     @override
     def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
@@ -694,19 +709,19 @@ class Thermostat(ClimateEntity):
             _LOGGER.error("Invalid mode for set_hvac_mode: %s", hvac_mode)
             return
         self.data.ecobee.set_hvac_mode(self.thermostat_index, ecobee_value)
-        self.update_without_throttle = True
+        self._refresh_after_write()
 
     def set_fan_min_on_time(self, fan_min_on_time):
         """Set the minimum fan on time."""
         self.data.ecobee.set_fan_min_on_time(self.thermostat_index, fan_min_on_time)
-        self.update_without_throttle = True
+        self._refresh_after_write()
 
     def resume_program(self, resume_all):
         """Resume the thermostat schedule program."""
         self.data.ecobee.resume_program(
             self.thermostat_index, "true" if resume_all else "false"
         )
-        self.update_without_throttle = True
+        self._refresh_after_write()
 
     def set_sensors_used_in_climate(
         self, device_ids: list[str], preset_mode: str | None = None
@@ -794,7 +809,7 @@ class Thermostat(ClimateEntity):
         self.data.ecobee.update_climate_sensors(
             self.thermostat_index, preset_mode, sensor_ids=sensor_ids
         )
-        self.update_without_throttle = True
+        self._refresh_after_write()
 
     def _sensors_in_preset_mode(self, preset_mode: str | None) -> list[str]:
         """Return current sensors used in climate."""
@@ -918,13 +933,16 @@ class Thermostat(ClimateEntity):
     def set_dst_mode(self, dst_enabled):
         """Enable/disable automatic daylight savings time."""
         self.data.ecobee.set_dst_mode(self.thermostat_index, dst_enabled)
+        self._refresh_after_write()
 
     def set_mic_mode(self, mic_enabled):
         """Enable/disable Alexa mic (only for Ecobee 4)."""
         self.data.ecobee.set_mic_mode(self.thermostat_index, mic_enabled)
+        self._refresh_after_write()
 
     def set_occupancy_modes(self, auto_away=None, follow_me=None):
         """Enable/disable Smart Home/Away and Follow Me modes."""
         self.data.ecobee.set_occupancy_modes(
             self.thermostat_index, auto_away, follow_me
         )
+        self._refresh_after_write()
