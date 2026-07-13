@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# python-ecobee-api-master is its own separate git repo (see its own
+# git history), never tracked inside this one.
+python-ecobee-api-master/

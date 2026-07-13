@@ -77,8 +77,14 @@
     "failed_to_refresh_tokens": {
       "message": "Failed to refresh ecobee tokens"
     },
+    "invalid_climate_name": {
+      "message": "Invalid comfort setting \"{name}\", available options are: {options}"
+    },
     "invalid_preset": {
       "message": "Invalid climate program, available options are: {options}"
+    },
+    "invalid_schedule_range": {
+      "message": "Schedule event end must be after its start"
     },
     "invalid_sensor": {
       "message": "Invalid sensor for thermostat, available options are: {options}"

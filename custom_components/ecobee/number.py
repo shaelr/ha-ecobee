@@ -79,6 +79,13 @@ async def async_setup_entry(
         EcobeeFanMinOnTime(data, index) for index in range(len(data.ecobee.thermostats))
     )
 
+    entities.extend(
+        EcobeeComfortTemp(data, index, climate["climateRef"], climate["name"], field)
+        for index, thermostat in enumerate(data.ecobee.thermostats)
+        for climate in thermostat["program"]["climates"]
+        for field in ("heatTemp", "coolTemp")
+    )
+
     async_add_entities(entities, True)
 
 
@@ -206,4 +213,66 @@ class EcobeeFanMinOnTime(EcobeeBaseEntity, NumberEntity):
         step = self._attr_native_step
         aligned_value = int(round(value / step) * step)
         self.data.ecobee.set_fan_min_on_time(self.thermostat_index, aligned_value)
+        self.update_without_throttle = True
+
+
+class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
+    """Heat or cool target temperature for one comfort setting.
+
+    A comfort setting is one of the named profiles in a thermostat's program
+    (e.g. Home, Away, Sleep, or a custom one) -- what ecobee's app calls
+    "Comfort Settings". This is distinct from the live hold/target
+    temperature exposed by the climate entity.
+    """
+
+    _attr_device_class = NumberDeviceClass.TEMPERATURE
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 7
+    _attr_native_max_value = 95
+    _attr_native_step = 0.5
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+
+    def __init__(
+        self,
+        data: EcobeeData,
+        thermostat_index: int,
+        climate_ref: str,
+        climate_name: str,
+        field: str,
+    ) -> None:
+        """Initialize a comfort setting temperature."""
+        super().__init__(data, thermostat_index)
+        self.climate_ref = climate_ref
+        self.field = field
+        label = "Heat Temp" if field == "heatTemp" else "Cool Temp"
+        self._attr_name = f"{climate_name} {label}"
+        self._attr_unique_id = f"{self.base_unique_id}_comfort_{climate_ref}_{field}"
+        self.update_without_throttle = False
+
+    def _climate(self) -> dict:
+        """Return this comfort setting's climate dict."""
+        for climate in self.thermostat["program"]["climates"]:
+            if climate["climateRef"] == self.climate_ref:
+                return climate
+        return {}
+
+    async def async_update(self) -> None:
+        """Get the latest state from the thermostat."""
+        if self.update_without_throttle:
+            await self.data.update(no_throttle=True)
+            self.update_without_throttle = False
+        else:
+            await self.data.update()
+        climate = self._climate()
+        if self.field in climate:
+            self._attr_native_value = climate[self.field] / 10
+
+    @override
+    def set_native_value(self, value: float) -> None:
+        """Set new comfort setting temperature."""
+        heat_temp = value if self.field == "heatTemp" else None
+        cool_temp = value if self.field == "coolTemp" else None
+        self.data.ecobee.set_climate_temperatures(
+            self.thermostat_index, self.climate_ref, heat_temp=heat_temp, cool_temp=cool_temp
+        )
         self.update_without_throttle = True

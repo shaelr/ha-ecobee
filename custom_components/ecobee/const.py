@@ -44,10 +44,12 @@ ECOBEE_MODEL_TO_NAME = {
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
+    Platform.CALENDAR,
     Platform.CLIMATE,
     Platform.HUMIDIFIER,
     Platform.NOTIFY,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.WEATHER,
@@ -56,6 +58,12 @@ PLATFORMS = [
 MANUFACTURER = "ecobee"
 
 ECOBEE_AUX_HEAT_ONLY = "auxHeatOnly"
+
+# thermostat["program"]["schedule"] is 7 lists of 48 half-hour climateRefs.
+# Per ecobee's API docs, schedule[0] is Sunday. This is unverified against a
+# live account (see calendar.py) -- if the displayed schedule is off by one
+# day, this offset is the first thing to check.
+SCHEDULE_WEEKDAY_TO_ECOBEE_DAY_INDEX_OFFSET = 1  # Python Monday=0 -> ecobee Monday=1
 
 # Translates ecobee API weatherSymbol to Home Assistant usable names
 # https://www.ecobee.com/home/developer/api/documentation/v1/objects/WeatherForecast.shtml
