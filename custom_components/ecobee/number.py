@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 import logging
+import math
 from typing import override
 
 from homeassistant.components.number import (
@@ -266,17 +267,31 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
 
     @property
     def native_min_value(self) -> float:
-        """Return the minimum value, converted to the active display unit."""
-        return TemperatureConverter.convert(
+        """Return the minimum value, converted and aligned to the step grid.
+
+        A raw conversion of 7F lands on a non-round value in Celsius
+        (-13.8888888888889C). Left as-is, that becomes the baseline
+        widgets/browsers step increments from, so every step would land on
+        an off-grid decimal instead of a clean multiple of native_step.
+        Floor to the step grid so the whole range is step-aligned.
+        """
+        converted = TemperatureConverter.convert(
             7, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
         )
+        step = self._attr_native_step
+        return math.floor(converted / step) * step
 
     @property
     def native_max_value(self) -> float:
-        """Return the maximum value, converted to the active display unit."""
-        return TemperatureConverter.convert(
+        """Return the maximum value, converted and aligned to the step grid.
+
+        Ceil'd rather than floor'd so the usable range isn't narrowed.
+        """
+        converted = TemperatureConverter.convert(
             95, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
         )
+        step = self._attr_native_step
+        return math.ceil(converted / step) * step
 
     def _climate(self) -> dict:
         """Return this comfort setting's climate dict."""
