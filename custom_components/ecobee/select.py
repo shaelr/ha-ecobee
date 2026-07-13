@@ -5,6 +5,7 @@ from typing import override
 from homeassistant.components.climate import FAN_AUTO, FAN_ON
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import EcobeeConfigEntry, EcobeeData
@@ -37,6 +38,7 @@ class EcobeeComfortFanMode(EcobeeBaseEntity, SelectEntity):
     together to match.
     """
 
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_options = [FAN_AUTO, FAN_ON]
 
     def __init__(
@@ -49,9 +51,8 @@ class EcobeeComfortFanMode(EcobeeBaseEntity, SelectEntity):
         """Initialize a comfort setting fan mode select."""
         super().__init__(data, thermostat_index)
         self.climate_ref = climate_ref
-        self._attr_name = "Fan"
+        self._attr_name = f"{climate_name} Fan"
         self._attr_unique_id = f"{self.base_unique_id}_comfort_{climate_ref}_fan_mode"
-        self._attr_device_info = self._comfort_device_info(climate_ref, climate_name)
         self.update_without_throttle = False
 
     def _climate(self) -> dict:

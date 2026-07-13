@@ -13,6 +13,7 @@ from homeassistant.components.number import (
 )
 from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 
@@ -227,6 +228,7 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
     """
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.BOX
     _attr_native_step = 0.5
     _attr_suggested_display_precision = 1
@@ -243,9 +245,9 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
         super().__init__(data, thermostat_index)
         self.climate_ref = climate_ref
         self.field = field
-        self._attr_name = "Heat Temp" if field == "heatTemp" else "Cool Temp"
+        label = "Heat Temp" if field == "heatTemp" else "Cool Temp"
+        self._attr_name = f"{climate_name} {label}"
         self._attr_unique_id = f"{self.base_unique_id}_comfort_{climate_ref}_{field}"
-        self._attr_device_info = self._comfort_device_info(climate_ref, climate_name)
         self.update_without_throttle = False
 
     @property
