@@ -14,6 +14,7 @@ from homeassistant.components.number import (
 from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util.unit_conversion import TemperatureConverter
 
 from . import EcobeeConfigEntry, EcobeeData
 from .entity import EcobeeBaseEntity
@@ -227,10 +228,8 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
     _attr_mode = NumberMode.BOX
-    _attr_native_min_value = 7
-    _attr_native_max_value = 95
     _attr_native_step = 0.5
-    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_suggested_display_precision = 1
 
     def __init__(
         self,
@@ -249,6 +248,34 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
         self._attr_device_info = self._comfort_device_info(climate_ref, climate_name)
         self.update_without_throttle = False
 
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Report values in whatever unit this Home Assistant is configured for.
+
+        ecobee's API is always Fahrenheit. Converting ourselves here, rather
+        than declaring FAHRENHEIT as native and letting HA's automatic
+        unit conversion handle display, keeps native_step exactly 0.5 in
+        whichever unit is actually shown. HA's built-in conversion instead
+        multiplies a declared native_step by the F/C ratio, turning a clean
+        0.5 into a non-round value (0.5F * 5/9 ~= 0.28C) -- not the clean
+        half-degree-in-either-unit stepping ecobee's own app/thermostat use.
+        """
+        return self.hass.config.units.temperature_unit
+
+    @property
+    def native_min_value(self) -> float:
+        """Return the minimum value, converted to the active display unit."""
+        return TemperatureConverter.convert(
+            7, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
+        )
+
+    @property
+    def native_max_value(self) -> float:
+        """Return the maximum value, converted to the active display unit."""
+        return TemperatureConverter.convert(
+            95, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
+        )
+
     def _climate(self) -> dict:
         """Return this comfort setting's climate dict."""
         for climate in self.thermostat["program"]["climates"]:
@@ -265,13 +292,19 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
             await self.data.update()
         climate = self._climate()
         if self.field in climate:
-            self._attr_native_value = climate[self.field] / 10
+            fahrenheit = climate[self.field] / 10
+            self._attr_native_value = TemperatureConverter.convert(
+                fahrenheit, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
+            )
 
     @override
     def set_native_value(self, value: float) -> None:
         """Set new comfort setting temperature."""
-        heat_temp = value if self.field == "heatTemp" else None
-        cool_temp = value if self.field == "coolTemp" else None
+        fahrenheit = TemperatureConverter.convert(
+            value, self.native_unit_of_measurement, UnitOfTemperature.FAHRENHEIT
+        )
+        heat_temp = fahrenheit if self.field == "heatTemp" else None
+        cool_temp = fahrenheit if self.field == "coolTemp" else None
         self.data.ecobee.set_climate_temperatures(
             self.thermostat_index, self.climate_ref, heat_temp=heat_temp, cool_temp=cool_temp
         )
