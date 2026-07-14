@@ -34,3 +34,21 @@ def is_indefinite_hold(start_date_string: str, end_date_string: str) -> bool:
     return date.fromisoformat(end_date_string) - date.fromisoformat(
         start_date_string
     ) > timedelta(days=365)
+
+
+def enforce_heat_cool_min_delta(
+    heat_temp: float, cool_temp: float, min_delta: float
+) -> tuple[float, float]:
+    """Ensure cool_temp is at least min_delta above heat_temp.
+
+    ecobee requires this gap between the heat and cool setpoints whenever
+    both are in play -- Heat/Cool (auto) mode holds, and each comfort
+    setting's own heat/cool pair. Asking for less gets silently rejected or
+    clamped server-side. If the requested pair is too close, spread them
+    apart symmetrically around their midpoint rather than favoring whichever
+    value happened to be passed first.
+    """
+    if cool_temp - heat_temp >= min_delta:
+        return heat_temp, cool_temp
+    midpoint = (heat_temp + cool_temp) / 2
+    return midpoint - min_delta / 2, midpoint + min_delta / 2

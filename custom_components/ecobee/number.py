@@ -20,6 +20,7 @@ from homeassistant.util.unit_conversion import TemperatureConverter
 
 from . import EcobeeConfigEntry, EcobeeData
 from .entity import EcobeeBaseEntity
+from .util import enforce_heat_cool_min_delta
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -300,6 +301,21 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
                 return climate
         return {}
 
+    def _fahrenheit_to_native(self, fahrenheit: float) -> float:
+        """Convert a Fahrenheit value to the active unit, rounded to the step grid.
+
+        ecobee stores in Fahrenheit tenths, so a value that started as a
+        clean 0.5-in-some-other-unit setting (e.g. set on the thermostat
+        itself while displaying Celsius) doesn't necessarily round-trip back
+        to a clean multiple of native_step -- round to the nearest step so
+        the box shows 23.5, not 23.5555555555556.
+        """
+        converted = TemperatureConverter.convert(
+            fahrenheit, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
+        )
+        step = self._attr_native_step
+        return round(converted / step) * step
+
     async def async_update(self) -> None:
         """Get the latest state from the thermostat."""
         if self.update_without_throttle:
@@ -309,33 +325,41 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
             await self.data.update()
         climate = self._climate()
         if self.field in climate:
-            fahrenheit = climate[self.field] / 10
-            converted = TemperatureConverter.convert(
-                fahrenheit, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
-            )
-            # ecobee stores in Fahrenheit tenths, so a value that started as
-            # a clean 0.5-in-some-other-unit setting (e.g. set on the
-            # thermostat itself while displaying Celsius) doesn't necessarily
-            # round-trip back to a clean multiple of native_step -- round to
-            # the nearest step so the box shows 23.5, not 23.5555555555556.
-            step = self._attr_native_step
-            self._attr_native_value = round(converted / step) * step
+            self._attr_native_value = self._fahrenheit_to_native(climate[self.field] / 10)
 
     @override
     def set_native_value(self, value: float) -> None:
         """Set new comfort setting temperature."""
         step = self._attr_native_step
         rounded = round(value / step) * step
-        fahrenheit = TemperatureConverter.convert(
+        requested_fahrenheit = TemperatureConverter.convert(
             rounded, self.native_unit_of_measurement, UnitOfTemperature.FAHRENHEIT
         )
-        heat_temp = fahrenheit if self.field == "heatTemp" else None
-        cool_temp = fahrenheit if self.field == "coolTemp" else None
+
+        # Heat Temp and Cool Temp are separate entities/API calls, so
+        # enforcing ecobee's minimum heat/cool gap here means looking up
+        # the *other* field's current value and sending both together.
+        climate = self._climate()
+        other_field = "coolTemp" if self.field == "heatTemp" else "heatTemp"
+        other_fahrenheit = climate[other_field] / 10
+
+        if self.field == "heatTemp":
+            heat_f, cool_f = requested_fahrenheit, other_fahrenheit
+        else:
+            heat_f, cool_f = other_fahrenheit, requested_fahrenheit
+        heat_f, cool_f = enforce_heat_cool_min_delta(
+            heat_f, cool_f, self.thermostat["settings"]["heatCoolMinDelta"] / 10.0
+        )
+
         self.data.ecobee.set_climate_temperatures(
-            self.thermostat_index, self.climate_ref, heat_temp=heat_temp, cool_temp=cool_temp
+            self.thermostat_index, self.climate_ref, heat_temp=heat_f, cool_temp=cool_f
         )
         # Show the rounded value immediately instead of leaving the stale
-        # pre-edit reading on screen until the next poll completes.
-        self._attr_native_value = rounded
+        # pre-edit reading on screen until the next poll completes. If the
+        # delta pushed this field away from what was requested, the sibling
+        # Heat/Cool Temp entity picks up its own adjusted value on its next
+        # poll -- update_without_throttle makes that happen right away too.
+        final_fahrenheit = heat_f if self.field == "heatTemp" else cool_f
+        self._attr_native_value = self._fahrenheit_to_native(final_fahrenheit)
         self.update_without_throttle = True
         self.schedule_update_ha_state()

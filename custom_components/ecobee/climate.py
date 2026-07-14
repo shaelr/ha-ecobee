@@ -60,7 +60,7 @@ from .services import (
     ATTR_VACATION_NAME,
     _async_get_thermostats,
 )
-from .util import is_indefinite_hold
+from .util import enforce_heat_cool_min_delta, is_indefinite_hold
 
 ATTR_DST_ENABLED = "dst_enabled"
 ATTR_MIC_ENABLED = "mic_enabled"
@@ -617,7 +617,18 @@ class Thermostat(ClimateEntity):
         if heat_temp is not None:
             heat_temp_setpoint = heat_temp
         else:
-            heat_temp_setpoint = self.thermostat["runtime"]["desiredCool"] / 10.0
+            heat_temp_setpoint = self.thermostat["runtime"]["desiredHeat"] / 10.0
+
+        # ecobee requires the cool setpoint to be at least heatCoolMinDelta
+        # above the heat setpoint in Heat/Cool mode. Dragging both handles
+        # on the dial can otherwise ask for a pair that's too close, which
+        # ecobee would silently reject or clamp -- spread them apart here
+        # instead so the request that actually goes out is always valid.
+        heat_temp_setpoint, cool_temp_setpoint = enforce_heat_cool_min_delta(
+            heat_temp_setpoint,
+            cool_temp_setpoint,
+            self.settings["heatCoolMinDelta"] / 10.0,
+        )
 
         self.data.ecobee.set_hold_temp(
             self.thermostat_index,
