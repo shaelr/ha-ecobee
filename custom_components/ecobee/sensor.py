@@ -211,7 +211,6 @@ class EcobeeHeatCoolMinDelta(EcobeeBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_name = "Heat/Cool Min Delta"
-    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
     _attr_suggested_display_precision = 1
 
     def __init__(self, data, thermostat_index: int) -> None:
@@ -219,7 +218,25 @@ class EcobeeHeatCoolMinDelta(EcobeeBaseEntity, SensorEntity):
         super().__init__(data, thermostat_index)
         self._attr_unique_id = f"{self.base_unique_id}_heat_cool_min_delta"
 
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Report in whatever unit this Home Assistant is configured for.
+
+        This value is a temperature *delta* (an interval), not an absolute
+        reading. Declaring FAHRENHEIT as native and letting HA's automatic
+        device_class=TEMPERATURE conversion handle display would be wrong:
+        that conversion applies the full (F-32)*5/9 absolute-temperature
+        formula, which corrupts a delta -- e.g. a 2F gap would render as
+        -16.7C instead of the correct ~1.1C gap. Convert ourselves using a
+        pure ratio, no offset.
+        """
+        return self.hass.config.units.temperature_unit
+
     async def async_update(self) -> None:
         """Get the latest state from the thermostat."""
         await self.data.update()
-        self._attr_native_value = self.thermostat["settings"]["heatCoolMinDelta"] / 10
+        delta_fahrenheit = self.thermostat["settings"]["heatCoolMinDelta"] / 10
+        if self.native_unit_of_measurement == UnitOfTemperature.CELSIUS:
+            self._attr_native_value = delta_fahrenheit * 5 / 9
+        else:
+            self._attr_native_value = delta_fahrenheit
