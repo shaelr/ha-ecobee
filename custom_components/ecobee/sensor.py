@@ -14,10 +14,12 @@ from homeassistant.components.sensor import (
 from homeassistant.const import UnitOfDensity, UnitOfRatio, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import EcobeeConfigEntry
 from .const import DOMAIN, ECOBEE_MODEL_TO_NAME, MANUFACTURER
+from .entity import EcobeeBaseEntity
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -72,7 +74,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up ecobee sensors."""
     data = config_entry.runtime_data
-    entities = [
+    entities: list[SensorEntity] = [
         EcobeeSensor(data, sensor["name"], index, description)
         for index in range(len(data.ecobee.thermostats))
         for sensor in data.ecobee.get_remote_sensors(index)
@@ -80,6 +82,11 @@ async def async_setup_entry(
         for description in SENSOR_TYPES
         if description.key == item["type"]
     ]
+
+    entities.extend(
+        EcobeeHeatCoolMinDelta(data, index)
+        for index in range(len(data.ecobee.thermostats))
+    )
 
     async_add_entities(entities, True)
 
@@ -190,3 +197,29 @@ class EcobeeSensor(SensorEntity):
                         self.entity_description.runtime_key
                     ]
                 break
+
+
+class EcobeeHeatCoolMinDelta(EcobeeBaseEntity, SensorEntity):
+    """Minimum required gap between the heat and cool setpoints in Heat/Cool mode.
+
+    Read-only: this is ecobee's settings.heatCoolMinDelta, thermostat-wide
+    (not per comfort setting). Already enforced when writing hold/comfort
+    temperatures (see util.enforce_heat_cool_min_delta) -- this just makes
+    the value itself visible.
+    """
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_name = "Heat/Cool Min Delta"
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, data, thermostat_index: int) -> None:
+        """Initialize the heat/cool minimum delta sensor."""
+        super().__init__(data, thermostat_index)
+        self._attr_unique_id = f"{self.base_unique_id}_heat_cool_min_delta"
+
+    async def async_update(self) -> None:
+        """Get the latest state from the thermostat."""
+        await self.data.update()
+        self._attr_native_value = self.thermostat["settings"]["heatCoolMinDelta"] / 10
