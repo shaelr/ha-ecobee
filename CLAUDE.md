@@ -181,10 +181,22 @@ passed first). Used in two places that need it independently:
   `set_climate_temperatures` call.
 
 The raw value is also exposed read-only as `sensor.EcobeeHeatCoolMinDelta`
-(`sensor.py`, one per thermostat, `entity_category: DIAGNOSTIC`) — unlike
-the number entities, this one lets HA's automatic device_class=TEMPERATURE
-unit conversion handle display, since a plain read-only sensor has no
-step/editing grid to misalign the way `EcobeeComfortTemp` did.
+(`sensor.py`, one per thermostat, `entity_category: DIAGNOSTIC`).
+
+**A third F/C conversion landmine, distinct from the two in the section
+above**: this sensor's value is a temperature *delta* (an interval), not an
+absolute reading. It originally declared `FAHRENHEIT` as native and let
+HA's automatic `device_class=TEMPERATURE` conversion handle display — which
+is wrong for a delta, because that conversion applies the full absolute-
+value formula `(F-32)*5/9`. A 2°F gap rendered as **-16.7°C** instead of the
+correct ~1.1°C gap (confirmed against a live account). Fixed the same way
+as `EcobeeComfortTemp`: `native_unit_of_measurement` is a property
+reporting whatever HA is configured for, and the conversion is done
+manually with a pure ratio (`* 5/9`, no offset). **Any future entity that
+represents a temperature difference/interval rather than a point-in-time
+reading needs this same treatment** — don't reach for
+`device_class=TEMPERATURE` + a fixed native unit + HA's automatic
+conversion by default; check whether the value is a delta first.
 
 ## Open thread: a custom dashboard card
 
