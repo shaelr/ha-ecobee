@@ -179,3 +179,21 @@ passed first). Used in two places that need it independently:
   Temp are separate entities/API calls per comfort setting, so setting one
   looks up the sibling field's current value and sends both together in one
   `set_climate_temperatures` call.
+
+The raw value is also exposed read-only as `sensor.EcobeeHeatCoolMinDelta`
+(`sensor.py`, one per thermostat, `entity_category: DIAGNOSTIC`) — unlike
+the number entities, this one lets HA's automatic device_class=TEMPERATURE
+unit conversion handle display, since a plain read-only sensor has no
+step/editing grid to misalign the way `EcobeeComfortTemp` did.
+
+## Open thread: a custom dashboard card
+
+The user has a separate custom Lovelace card for this integration (built in
+a different conversation/session, not part of this repo) and was mid-way
+through deciding whether the current entity shape (10+ flat entities in the
+thermostat's Configuration section: Heat Temp/Cool Temp/Fan per comfort
+setting, Start Time for Home/Sleep) is easy to build that card against, or
+whether the entities themselves should be restructured first. Nothing's
+been decided yet — this needs the card's actual YAML/code (ask the user for
+it; it isn't saved anywhere in this repo or elsewhere on the local
+filesystem as of this writing) before making a call either way.
