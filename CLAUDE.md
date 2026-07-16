@@ -114,12 +114,17 @@ already there. `DELETE_EVENT` is intentionally **not** supported: every slot
 always belongs to *some* comfort setting, so there's no valid "empty" state
 to delete into — this was an explicit product decision, not an oversight.
 
-**Unverified assumption, flagged in `const.py`**:
-`SCHEDULE_WEEKDAY_TO_ECOBEE_DAY_INDEX_OFFSET` assumes `program.schedule[0]`
-is Sunday (per ecobee's API docs), converting Python's `date.weekday()`
-(Monday=0) accordingly. This has not been confirmed against a live account.
-If a user reports the calendar showing the wrong weekday for a schedule
-block, this offset is the first thing to check — it's a one-line fix.
+**Day-index offset — was wrong, now fixed and confirmed against a live
+account**: `SCHEDULE_WEEKDAY_TO_ECOBEE_DAY_INDEX_OFFSET` originally assumed
+`program.schedule[0]` was Sunday (per how ecobee's API docs were read),
+using an offset of 1. That was wrong: `schedule[0]` is actually **Monday**,
+which already matches Python's own `date.weekday()` numbering (Monday=0)
+directly — the correct offset is **0**. The bug's signature was a clean
++1-day shift (editing Thursday applied the change to Friday), diagnosed and
+confirmed live via a separate session working on a Lovelace card against
+this integration, not caught in this repo's own testing. If a *different*
+off-by-N-day symptom ever shows up here again, re-derive from scratch
+rather than assuming it's this same already-fixed issue.
 
 ### Two different fixes for "the UI shows stale data after editing"
 
