@@ -19,8 +19,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from . import EcobeeConfigEntry, EcobeeData
+from .const import FURNACE_FILTER_EQUIPMENT_TYPE
 from .entity import EcobeeBaseEntity
-from .util import enforce_heat_cool_min_delta
+from .util import enforce_heat_cool_min_delta, furnace_filter_equipment
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +89,12 @@ async def async_setup_entry(
         for index, thermostat in enumerate(data.ecobee.thermostats)
         for climate in thermostat["program"]["climates"]
         for field in ("heatTemp", "coolTemp")
+    )
+
+    entities.extend(
+        EcobeeFurnaceFilterReminderInterval(data, index)
+        for index, thermostat in enumerate(data.ecobee.thermostats)
+        if furnace_filter_equipment(thermostat) is not None
     )
 
     async_add_entities(entities, True)
@@ -361,5 +368,53 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
         # poll -- update_without_throttle makes that happen right away too.
         final_fahrenheit = heat_f if self.field == "heatTemp" else cool_f
         self._attr_native_value = self._fahrenheit_to_native(final_fahrenheit)
+        self.update_without_throttle = True
+        self.schedule_update_ha_state()
+
+
+class EcobeeFurnaceFilterReminderInterval(EcobeeBaseEntity, NumberEntity):
+    """How many months between furnace filter reminders.
+
+    Unverified field name (see pyecobee's set_equipment_reminder) --
+    ecobee's notificationSettings.equipment schema hasn't been checked
+    against a live payload for this integration.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 1
+    _attr_native_max_value = 12
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.MONTHS
+    _attr_name = "Furnace Filter Reminder Interval"
+
+    def __init__(self, data: EcobeeData, thermostat_index: int) -> None:
+        """Initialize the furnace filter reminder interval."""
+        super().__init__(data, thermostat_index)
+        self._attr_unique_id = f"{self.base_unique_id}_furnace_filter_reminder_interval"
+        self.update_without_throttle = False
+
+    async def async_update(self) -> None:
+        """Get the latest state from the thermostat."""
+        if self.update_without_throttle:
+            await self.data.update(no_throttle=True)
+            self.update_without_throttle = False
+        else:
+            await self.data.update()
+        equipment = furnace_filter_equipment(self.thermostat)
+        if equipment is not None and equipment.get("filterLife") is not None:
+            self._attr_native_value = equipment["filterLife"]
+
+    @override
+    def set_native_value(self, value: float) -> None:
+        """Set the furnace filter reminder interval, in months."""
+        months = int(value)
+        self.data.ecobee.set_equipment_reminder(
+            self.thermostat_index,
+            FURNACE_FILTER_EQUIPMENT_TYPE,
+            filter_life=months,
+            filter_life_units="month",
+        )
+        self._attr_native_value = months
         self.update_without_throttle = True
         self.schedule_update_ha_state()

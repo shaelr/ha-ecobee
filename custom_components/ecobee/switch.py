@@ -7,13 +7,15 @@ from typing import Any, override
 from homeassistant.components.climate import HVACMode
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import EcobeeConfigEntry, EcobeeData
 from .climate import HASS_TO_ECOBEE_HVAC
-from .const import ECOBEE_AUX_HEAT_ONLY
+from .const import ECOBEE_AUX_HEAT_ONLY, FURNACE_FILTER_EQUIPMENT_TYPE
 from .entity import EcobeeBaseEntity
+from .util import furnace_filter_equipment
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +47,12 @@ async def async_setup_entry(
             for index, thermostat in enumerate(data.ecobee.thermostats)
             if thermostat["settings"]["hasHeatPump"]
         )
+    )
+
+    entities.extend(
+        EcobeeFurnaceFilterReminderEnabled(data, index)
+        for index, thermostat in enumerate(data.ecobee.thermostats)
+        if furnace_filter_equipment(thermostat) is not None
     )
 
     async_add_entities(entities, update_before_add=True)
@@ -138,3 +146,50 @@ class EcobeeSwitchAuxHeatOnly(EcobeeBaseEntity, SwitchEntity):
     def is_on(self) -> bool:
         """Return true if auxHeatOnly mode is active."""
         return self.thermostat["settings"]["hvacMode"] == ECOBEE_AUX_HEAT_ONLY
+
+
+class EcobeeFurnaceFilterReminderEnabled(EcobeeBaseEntity, SwitchEntity):
+    """Whether the furnace filter reminder is enabled.
+
+    Unverified field name (see pyecobee's set_equipment_reminder) --
+    ecobee's notificationSettings.equipment schema hasn't been checked
+    against a live payload for this integration.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_name = "Furnace Filter Reminder"
+
+    def __init__(self, data: EcobeeData, thermostat_index: int) -> None:
+        """Initialize the furnace filter reminder switch."""
+        super().__init__(data, thermostat_index)
+        self._attr_unique_id = f"{self.base_unique_id}_furnace_filter_reminder_enabled"
+        self.update_without_throttle = False
+
+    async def async_update(self) -> None:
+        """Get the latest state from the thermostat."""
+        if self.update_without_throttle:
+            await self.data.update(no_throttle=True)
+            self.update_without_throttle = False
+        else:
+            await self.data.update()
+        equipment = furnace_filter_equipment(self.thermostat)
+        if equipment is not None:
+            self._attr_is_on = bool(equipment.get("enabled"))
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.data.ecobee.set_equipment_reminder(
+            self.thermostat_index, FURNACE_FILTER_EQUIPMENT_TYPE, enabled=enabled
+        )
+        self._attr_is_on = enabled
+        self.update_without_throttle = True
+        self.schedule_update_ha_state()
+
+    @override
+    def turn_on(self, **kwargs: Any) -> None:
+        """Enable the furnace filter reminder."""
+        self._set_enabled(True)
+
+    @override
+    def turn_off(self, **kwargs: Any) -> None:
+        """Disable the furnace filter reminder."""
+        self._set_enabled(False)

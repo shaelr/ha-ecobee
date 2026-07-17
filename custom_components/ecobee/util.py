@@ -1,8 +1,11 @@
 """Validation utility functions for ecobee services."""
 
 from datetime import date, datetime, timedelta
+from typing import Any
 
 import voluptuous as vol
+
+from .const import FURNACE_FILTER_EQUIPMENT_TYPE
 
 
 def ecobee_date(date_string):
@@ -52,3 +55,16 @@ def enforce_heat_cool_min_delta(
         return heat_temp, cool_temp
     midpoint = (heat_temp + cool_temp) / 2
     return midpoint - min_delta / 2, midpoint + min_delta / 2
+
+
+def furnace_filter_equipment(thermostat: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the furnace filter entry from a thermostat's equipment reminders.
+
+    None if the thermostat isn't tracking one (or notificationSettings isn't
+    present at all, e.g. include_notifications wasn't enabled).
+    """
+    equipment_list = thermostat.get("notificationSettings", {}).get("equipment", [])
+    for equipment in equipment_list:
+        if equipment.get("type") == FURNACE_FILTER_EQUIPMENT_TYPE:
+            return equipment
+    return None
