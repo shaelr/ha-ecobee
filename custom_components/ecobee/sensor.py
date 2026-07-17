@@ -247,13 +247,22 @@ class EcobeeHeatCoolMinDelta(EcobeeBaseEntity, SensorEntity):
             self._attr_native_value = delta_fahrenheit
 
 
+MAX_STATE_LENGTH = 255
+
+
 class EcobeeActiveAlerts(EcobeeBaseEntity, SensorEntity):
-    """Count of ecobee's actual fired alerts/notifications, with details as attributes.
+    """ecobee's actual fired alerts/notifications, if any.
 
     Distinct from notificationSettings.equipment (the reminder
     *configuration* -- interval, enabled, last-changed): this is what
     actually shows up once a reminder (or any other alert ecobee sends,
     e.g. temperature/humidity limits) fires, via thermostat["alerts"].
+
+    The state is the alert text itself (joined, if more than one), not a
+    bare count -- HA's default sensor more-info dialog doesn't surface
+    custom attributes anywhere, so a count alone ("1") isn't actually
+    useful there; the count and full per-alert detail are still available
+    as attributes for anyone building a dashboard card.
 
     Note "type" is generic (e.g. "alert"), not specific to what the alert
     is about -- that's only conveyed by the human-readable "text".
@@ -271,8 +280,13 @@ class EcobeeActiveAlerts(EcobeeBaseEntity, SensorEntity):
         """Get the latest state from the thermostat."""
         await self.data.update()
         alerts = self.thermostat.get("alerts", [])
-        self._attr_native_value = len(alerts)
+        if alerts:
+            summary = "; ".join(alert.get("text", "").strip() for alert in alerts)
+            self._attr_native_value = summary[:MAX_STATE_LENGTH]
+        else:
+            self._attr_native_value = "No active alerts"
         self._attr_extra_state_attributes = {
+            "count": len(alerts),
             "alerts": [
                 {
                     "text": alert.get("text"),
@@ -282,5 +296,5 @@ class EcobeeActiveAlerts(EcobeeBaseEntity, SensorEntity):
                     "type": alert.get("alertType"),
                 }
                 for alert in alerts
-            ]
+            ],
         }
