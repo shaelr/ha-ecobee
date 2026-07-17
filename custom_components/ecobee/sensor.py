@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import EcobeeConfigEntry
+from . import EcobeeConfigEntry, EcobeeData
 from .const import DOMAIN, ECOBEE_MODEL_TO_NAME, MANUFACTURER
 from .entity import EcobeeBaseEntity
 
@@ -85,6 +85,11 @@ async def async_setup_entry(
 
     entities.extend(
         EcobeeHeatCoolMinDelta(data, index)
+        for index in range(len(data.ecobee.thermostats))
+    )
+
+    entities.extend(
+        EcobeeActiveAlerts(data, index)
         for index in range(len(data.ecobee.thermostats))
     )
 
@@ -240,3 +245,44 @@ class EcobeeHeatCoolMinDelta(EcobeeBaseEntity, SensorEntity):
             self._attr_native_value = delta_fahrenheit * 5 / 9
         else:
             self._attr_native_value = delta_fahrenheit
+
+
+class EcobeeActiveAlerts(EcobeeBaseEntity, SensorEntity):
+    """Count of ecobee's actual fired alerts/notifications, with details as attributes.
+
+    Distinct from notificationSettings.equipment (the reminder
+    *configuration* -- interval, enabled, last-changed): this is what
+    actually shows up once a reminder (or any other alert ecobee sends,
+    e.g. temperature/humidity limits) fires, via thermostat["alerts"].
+
+    Field names for each alert entry are this integration's best
+    understanding, not confirmed against a live alert -- verify via
+    Download Diagnostics once a real alert is active, and correct here if
+    any of them don't stick.
+    """
+
+    _attr_icon = "mdi:bell-alert"
+    _attr_name = "Active Alerts"
+
+    def __init__(self, data: EcobeeData, thermostat_index: int) -> None:
+        """Initialize the active alerts sensor."""
+        super().__init__(data, thermostat_index)
+        self._attr_unique_id = f"{self.base_unique_id}_active_alerts"
+
+    async def async_update(self) -> None:
+        """Get the latest state from the thermostat."""
+        await self.data.update()
+        alerts = self.thermostat.get("alerts", [])
+        self._attr_native_value = len(alerts)
+        self._attr_extra_state_attributes = {
+            "alerts": [
+                {
+                    "text": alert.get("text"),
+                    "date": alert.get("date"),
+                    "time": alert.get("time"),
+                    "severity": alert.get("severity"),
+                    "type": alert.get("alertType"),
+                }
+                for alert in alerts
+            ]
+        }

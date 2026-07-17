@@ -248,6 +248,25 @@ and the reminder countdown wouldn't actually restart.
 All other fields (`enabled`, `filterLife`, `filterLifeUnits`, the
 `"furnaceFilter"` type string) are confirmed correct as originally guessed.
 
+### Active alerts sensor — reminder *configuration* vs. actual fired alerts
+
+`sensor.EcobeeActiveAlerts` (`sensor.py`) is a different concept from the
+furnace filter entities above, easy to conflate since both are
+"reminder"-shaped: `notificationSettings.equipment` is the *configuration*
+of a reminder (interval, enabled, last-changed); `thermostat["alerts"]` is
+what actually shows up once a reminder (or any other alert ecobee sends,
+e.g. a temperature/humidity limit) fires. Fetching it required adding
+`includeAlerts: "true"` to `get_thermostats()`'s selection (unconditionally,
+unlike `includeNotificationSettings`, which stays opt-in behind
+`include_notifications`).
+
+**The per-alert field names (`text`, `date`, `time`, `severity`,
+`alertType`) are this integration's best guess, not confirmed against a
+live alert** — same situation the furnace filter fields were in before the
+diagnostics dump fixed them. Verify via Download Diagnostics once a real
+alert is active (e.g. let a filter reminder actually come due) and correct
+the field names in `EcobeeActiveAlerts.async_update()` if they don't stick.
+
 ## Open thread: a custom dashboard card
 
 The user has a separate custom Lovelace card for this integration (built in
