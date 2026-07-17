@@ -11,10 +11,10 @@
   "iot_class": "cloud_polling",
   "loggers": ["pyecobee"],
   "requirements": [
-    "python-ecobee-api @ git+https://github.com/shaelr/python-ecobee-api.git@v0.6.1"
+    "python-ecobee-api @ git+https://github.com/shaelr/python-ecobee-api.git@v0.6.2"
   ],
   "single_config_entry": true,
-  "version": "0.5.2",
+  "version": "0.5.3",
   "zeroconf": [
     {
       "type": "_ecobee._tcp.local."
