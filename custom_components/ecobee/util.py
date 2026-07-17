@@ -1,5 +1,6 @@
 """Validation utility functions for ecobee services."""
 
+import calendar
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -68,3 +69,16 @@ def furnace_filter_equipment(thermostat: dict[str, Any]) -> dict[str, Any] | Non
         if equipment.get("type") == FURNACE_FILTER_EQUIPMENT_TYPE:
             return equipment
     return None
+
+
+def add_months(day: date, months: int) -> date:
+    """Add (or subtract, for a negative value) whole months to a date.
+
+    Clamps the day-of-month if the target month is shorter (e.g. Jan 31 + 1
+    month -> Feb 28/29, not Mar 3).
+    """
+    total = day.month - 1 + months
+    year = day.year + total // 12
+    month = total % 12 + 1
+    clamped_day = min(day.day, calendar.monthrange(year, month)[1])
+    return date(year, month, clamped_day)

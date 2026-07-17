@@ -385,7 +385,11 @@ class EcobeeFurnaceFilterReminderInterval(EcobeeBaseEntity, NumberEntity):
     _attr_native_min_value = 1
     _attr_native_max_value = 12
     _attr_native_step = 1
-    _attr_native_unit_of_measurement = UnitOfTime.MONTHS
+    # Not UnitOfTime.MONTHS: that enum's display value is the abbreviation
+    # "m", which reads as ambiguous (minutes/months) next to this entity's
+    # 1-12 range. No device_class here requires a recognized unit string,
+    # so a plain "months" is fine and reads clearly.
+    _attr_native_unit_of_measurement = "months"
     _attr_name = "Furnace Filter Reminder Interval"
 
     def __init__(self, data: EcobeeData, thermostat_index: int) -> None:

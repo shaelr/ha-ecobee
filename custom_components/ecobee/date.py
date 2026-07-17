@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import EcobeeConfigEntry, EcobeeData
 from .const import FURNACE_FILTER_EQUIPMENT_TYPE
 from .entity import EcobeeBaseEntity
-from .util import furnace_filter_equipment
+from .util import add_months, furnace_filter_equipment
 
 
 async def async_setup_entry(
@@ -34,10 +34,15 @@ async def async_setup_entry(
 class EcobeeFurnaceFilterLastServiceDate(EcobeeBaseEntity, DateEntity):
     """The last-service date for the furnace filter reminder.
 
-    Unverified field name (see pyecobee's set_equipment_reminder) --
-    ecobee's notificationSettings.equipment schema hasn't been checked
-    against a live payload for this integration; fix the field name there
-    if this doesn't match what a real account returns.
+    ecobee's notificationSettings.equipment entry doesn't store a "last
+    service date" field directly -- confirmed against a live account,
+    "remindMeDate" is actually the *next reminder due* date. Last service
+    date is derived here as remindMeDate minus the reminder interval
+    (filterLife, in months), and writing a new value here recomputes and
+    writes the corresponding due date. The month-arithmetic relationship
+    (due = last_service + filterLife months) is inferred from that one
+    confirmed data point, not from API docs -- if dates still come out
+    wrong, this relationship is the next thing to question.
     """
 
     _attr_entity_category = EntityCategory.CONFIG
@@ -59,16 +64,31 @@ class EcobeeFurnaceFilterLastServiceDate(EcobeeBaseEntity, DateEntity):
         else:
             await self.data.update()
         equipment = furnace_filter_equipment(self.thermostat)
-        if equipment is not None and equipment.get("remindMeDate"):
-            self._attr_native_value = date_.fromisoformat(equipment["remindMeDate"])
+        if equipment is None or not equipment.get("remindMeDate"):
+            return
+        due_date = date_.fromisoformat(equipment["remindMeDate"])
+        interval_months = equipment.get("filterLife")
+        if interval_months is None:
+            # Can't derive a last-service date without the interval to
+            # subtract; leave the previous value rather than show the due
+            # date under the wrong label.
+            return
+        self._attr_native_value = add_months(due_date, -interval_months)
 
     @override
     def set_value(self, value: date_) -> None:
         """Set the furnace filter's last service date."""
+        equipment = furnace_filter_equipment(self.thermostat)
+        interval_months = equipment.get("filterLife") if equipment else None
+        due_date = (
+            add_months(value, interval_months)
+            if interval_months is not None
+            else value
+        )
         self.data.ecobee.set_equipment_reminder(
             self.thermostat_index,
             FURNACE_FILTER_EQUIPMENT_TYPE,
-            last_service_date=value.isoformat(),
+            remind_me_date=due_date.isoformat(),
         )
         self._attr_native_value = value
         self.update_without_throttle = True
