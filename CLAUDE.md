@@ -203,14 +203,38 @@ reading needs this same treatment** — don't reach for
 `device_class=TEMPERATURE` + a fixed native unit + HA's automatic
 conversion by default; check whether the value is a delta first.
 
+### Furnace filter reminder entities — unverified against a live payload
+
+`switch.EcobeeFurnaceFilterReminderEnabled`, `number.EcobeeFurnaceFilterReminderInterval`,
+and `date.EcobeeFurnaceFilterLastServiceDate` all read/write one entry in
+`thermostat["notificationSettings"]["equipment"]` (matched by
+`type == FURNACE_FILTER_EQUIPMENT_TYPE`, currently `"furnaceFilter"`), via
+the new `pyecobee` method `set_equipment_reminder`. This required also
+turning on `include_notifications` when constructing the `Ecobee` client in
+`EcobeeData.__init__` — `notificationSettings` wasn't being fetched from the
+API at all before this.
+
+**None of the field names here are confirmed against a live account**:
+`type: "furnaceFilter"`, `enabled`, `filterLife`, `filterLifeUnits`,
+`remindMeDate` (used for "last service date") are this library's best
+understanding of ecobee's schema, not verified data. If these entities
+never appear despite the user having a furnace filter reminder configured
+in the ecobee app, or values look wrong, this equipment-list schema is the
+first thing to check — same kind of fix as the schedule day-index offset
+was: isolated to a few field-name references, easy to correct once real
+payload data is available.
+
 ## Open thread: a custom dashboard card
 
 The user has a separate custom Lovelace card for this integration (built in
-a different conversation/session, not part of this repo) and was mid-way
-through deciding whether the current entity shape (10+ flat entities in the
-thermostat's Configuration section: Heat Temp/Cool Temp/Fan per comfort
-setting, Start Time for Home/Sleep) is easy to build that card against, or
-whether the entities themselves should be restructured first. Nothing's
-been decided yet — this needs the card's actual YAML/code (ask the user for
-it; it isn't saved anywhere in this repo or elsewhere on the local
-filesystem as of this writing) before making a call either way.
+a different conversation/session, referred to as "ecosee", not part of this
+repo) and was mid-way through deciding whether the current entity shape
+(10+ flat entities in the thermostat's Configuration section) is easy to
+build that card against, or whether the entities themselves should be
+restructured first. Nothing's been decided yet. That other session *has*
+produced at least one real, confirmed bug report back into this repo
+already (the schedule day-index offset, v0.4.3) — it's an active,
+productive channel, not just a hypothetical future integration. Ask the
+user for the card's actual YAML/code if picking this thread back up; it
+isn't saved anywhere in this repo or elsewhere on the local filesystem as
+of this writing.
