@@ -82,3 +82,25 @@ def add_months(day: date, months: int) -> date:
     month = total % 12 + 1
     clamped_day = min(day.day, calendar.monthrange(year, month)[1])
     return date(year, month, clamped_day)
+
+
+def furnace_filter_last_changed_kwargs(
+    equipment: dict[str, Any] | None, new_last_changed: date
+) -> dict[str, str]:
+    """Build set_equipment_reminder kwargs for a new furnace filter last-changed date.
+
+    Also advances remind_me_date by the reminder interval, so the
+    countdown actually restarts -- remindMeDate rolls forward on its own
+    over time rather than staying anchored to filterLastChanged (confirmed
+    against a live account), so leaving it untouched wouldn't reset
+    anything. Shared by the last-service-date entity (date.py) and the
+    "I changed the filter" button (button.py), which both need exactly
+    this same write.
+    """
+    kwargs: dict[str, str] = {"filter_last_changed": new_last_changed.isoformat()}
+    interval_months = equipment.get("filterLife") if equipment else None
+    if interval_months is not None:
+        kwargs["remind_me_date"] = add_months(
+            new_last_changed, interval_months
+        ).isoformat()
+    return kwargs

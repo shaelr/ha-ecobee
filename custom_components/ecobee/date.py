@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import EcobeeConfigEntry, EcobeeData
 from .const import FURNACE_FILTER_EQUIPMENT_TYPE
 from .entity import EcobeeBaseEntity
-from .util import add_months, furnace_filter_equipment
+from .util import furnace_filter_equipment, furnace_filter_last_changed_kwargs
 
 
 async def async_setup_entry(
@@ -71,14 +71,7 @@ class EcobeeFurnaceFilterLastServiceDate(EcobeeBaseEntity, DateEntity):
     def set_value(self, value: date_) -> None:
         """Set the furnace filter's last service date."""
         equipment = furnace_filter_equipment(self.thermostat)
-        interval_months = equipment.get("filterLife") if equipment else None
-        kwargs = {"filter_last_changed": value.isoformat()}
-        if interval_months is not None:
-            # remindMeDate rolls forward on its own over time rather than
-            # staying anchored to filterLastChanged, so it has to be
-            # advanced explicitly here too, or the reminder countdown
-            # wouldn't actually restart from the new last-changed date.
-            kwargs["remind_me_date"] = add_months(value, interval_months).isoformat()
+        kwargs = furnace_filter_last_changed_kwargs(equipment, value)
         self.data.ecobee.set_equipment_reminder(
             self.thermostat_index, FURNACE_FILTER_EQUIPMENT_TYPE, **kwargs
         )

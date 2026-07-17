@@ -206,13 +206,19 @@ conversion by default; check whether the value is a delta first.
 ### Furnace filter reminder entities
 
 `switch.EcobeeFurnaceFilterReminderEnabled`, `number.EcobeeFurnaceFilterReminderInterval`,
-and `date.EcobeeFurnaceFilterLastServiceDate` all read/write one entry in
-`thermostat["notificationSettings"]["equipment"]` (matched by
-`type == FURNACE_FILTER_EQUIPMENT_TYPE`, `"furnaceFilter"`), via
+`date.EcobeeFurnaceFilterLastServiceDate`, and `button.EcobeeFurnaceFilterChanged`
+(sets the last-service date to today, a shortcut for the date entity) all
+read/write one entry in `thermostat["notificationSettings"]["equipment"]`
+(matched by `type == FURNACE_FILTER_EQUIPMENT_TYPE`, `"furnaceFilter"`), via
 `pyecobee`'s `set_equipment_reminder`. This required also turning on
 `include_notifications` when constructing the `Ecobee` client in
 `EcobeeData.__init__` — `notificationSettings` wasn't being fetched from the
 API at all before this.
+
+`util.furnace_filter_last_changed_kwargs()` is the shared "write a new
+last-changed date, and advance the rolling due-date to match" logic (see
+below) — both the date entity and the button call it, so the two stay in
+sync rather than risking drift between two copies of the same write.
 
 **Confirmed against a real account's diagnostics dump** (Settings → Devices
 & Services → ecobee → ⋮ → Download diagnostics — `diagnostics.py`, added

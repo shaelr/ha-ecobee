@@ -44,6 +44,7 @@ ECOBEE_MODEL_TO_NAME = {
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.CALENDAR,
     Platform.CLIMATE,
     Platform.DATE,
