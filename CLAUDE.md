@@ -260,12 +260,24 @@ e.g. a temperature/humidity limit) fires. Fetching it required adding
 unlike `includeNotificationSettings`, which stays opt-in behind
 `include_notifications`).
 
-**The per-alert field names (`text`, `date`, `time`, `severity`,
-`alertType`) are this integration's best guess, not confirmed against a
-live alert** — same situation the furnace filter fields were in before the
-diagnostics dump fixed them. Verify via Download Diagnostics once a real
-alert is active (e.g. let a filter reminder actually come due) and correct
-the field names in `EcobeeActiveAlerts.async_update()` if they don't stick.
+**Confirmed against a real fired alert**: a live furnace-filter-due alert
+matched the guessed shape exactly --
+
+```json
+{
+  "text": "Time to change your furnace filter. It was last changed on Jan 10, 2026. For help, visit ecobee.com/filterchange",
+  "date": "2026-07-17",
+  "time": "13:48:02",
+  "severity": "low",
+  "type": "alert"
+}
+```
+
+Note `type` here is generic (`"alert"`, not something specific like
+`"filterFurnace"`) — what the alert is actually *about* is only conveyed by
+the human-readable `text`, not a structured field. Don't assume `type` can
+be used to distinguish alert categories programmatically; parse `text` if
+that's ever needed.
 
 ## Open thread: a custom dashboard card
 

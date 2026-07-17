@@ -255,10 +255,8 @@ class EcobeeActiveAlerts(EcobeeBaseEntity, SensorEntity):
     actually shows up once a reminder (or any other alert ecobee sends,
     e.g. temperature/humidity limits) fires, via thermostat["alerts"].
 
-    Field names for each alert entry are this integration's best
-    understanding, not confirmed against a live alert -- verify via
-    Download Diagnostics once a real alert is active, and correct here if
-    any of them don't stick.
+    Note "type" is generic (e.g. "alert"), not specific to what the alert
+    is about -- that's only conveyed by the human-readable "text".
     """
 
     _attr_icon = "mdi:bell-alert"
