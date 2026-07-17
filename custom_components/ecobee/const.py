@@ -62,9 +62,7 @@ MANUFACTURER = "ecobee"
 ECOBEE_AUX_HEAT_ONLY = "auxHeatOnly"
 
 # thermostat["notificationSettings"]["equipment"][n]["type"] for the furnace
-# filter reminder. Unverified against a live payload -- if furnace filter
-# entities never show up for a system that has this reminder configured in
-# the ecobee app, this is the first thing to check.
+# filter reminder. Confirmed against a live account's diagnostics dump.
 FURNACE_FILTER_EQUIPMENT_TYPE = "furnaceFilter"
 
 # thermostat["program"]["schedule"] is 7 lists of 48 half-hour climateRefs.

@@ -149,12 +149,7 @@ class EcobeeSwitchAuxHeatOnly(EcobeeBaseEntity, SwitchEntity):
 
 
 class EcobeeFurnaceFilterReminderEnabled(EcobeeBaseEntity, SwitchEntity):
-    """Whether the furnace filter reminder is enabled.
-
-    Unverified field name (see pyecobee's set_equipment_reminder) --
-    ecobee's notificationSettings.equipment schema hasn't been checked
-    against a live payload for this integration.
-    """
+    """Whether the furnace filter reminder is enabled."""
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_name = "Furnace Filter Reminder"

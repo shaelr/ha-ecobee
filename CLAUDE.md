@@ -208,36 +208,45 @@ conversion by default; check whether the value is a delta first.
 `switch.EcobeeFurnaceFilterReminderEnabled`, `number.EcobeeFurnaceFilterReminderInterval`,
 and `date.EcobeeFurnaceFilterLastServiceDate` all read/write one entry in
 `thermostat["notificationSettings"]["equipment"]` (matched by
-`type == FURNACE_FILTER_EQUIPMENT_TYPE`, currently `"furnaceFilter"`), via
+`type == FURNACE_FILTER_EQUIPMENT_TYPE`, `"furnaceFilter"`), via
 `pyecobee`'s `set_equipment_reminder`. This required also turning on
 `include_notifications` when constructing the `Ecobee` client in
 `EcobeeData.__init__` — `notificationSettings` wasn't being fetched from the
 API at all before this.
 
-**`remindMeDate` is the next reminder *due* date, not a last-service
-date** — confirmed against a live account (the "Last Service Date" entity
-was initially just displaying it directly, which showed the due date
-instead). `pyecobee`'s parameter for it is named `remind_me_date`
-accordingly, not `last_service_date`, precisely so it doesn't imply
-otherwise — that's a deliberate scope boundary: `pyecobee` stays a thin
-wire-format client and doesn't interpret what the field means.
+**Confirmed against a real account's diagnostics dump** (Settings → Devices
+& Services → ecobee → ⋮ → Download diagnostics — `diagnostics.py`, added
+specifically because this schema needed exactly this to pin down). A real
+`furnaceFilter` equipment entry:
 
-The "last service date" *concept* is a `ha-ecobee`-side interpretation,
-derived in `date.py` via `util.add_months()`:
-`last_service = remindMeDate - filterLife months`, and writing a new value
-recomputes and writes the corresponding `remindMeDate` forward by the same
-interval. This relationship is inferred from one confirmed data point (due
-2026-04-08, 3-month interval, actual last service 2026-01-08), not from API
-docs — if dates are still off after this fix, question the relationship
-itself, not just field names.
+```json
+{
+  "filterLastChanged": "2026-01-08",
+  "filterLife": 3,
+  "filterLifeUnits": "month",
+  "remindMeDate": "2026-07-08",
+  "enabled": true,
+  "type": "furnaceFilter"
+}
+```
 
-**Still genuinely unverified**: `type: "furnaceFilter"`, `enabled`,
-`filterLife`, `filterLifeUnits`. If these entities never appear despite the
-user having a furnace filter reminder configured in the ecobee app, or the
-interval/enabled values look wrong, this is the next thing to check — same
-kind of fix as the schedule day-index offset was: isolated to a few
-field-name references in `pyecobee`'s `set_equipment_reminder`, easy to
-correct once more payload data is available.
+`filterLastChanged` is the actual last-service date — a dedicated field,
+read/written directly in `date.py`, no derivation. (An earlier version of
+this entity wrongly assumed no such field existed and tried to derive it
+as `remindMeDate - filterLife months`; that produced the *due* date instead
+of the last-service date, because...)
+
+**`remindMeDate` rolls forward on its own over time** — it was observed to
+advance from `2026-04-08` to `2026-07-08` between two diagnostics dumps
+with no edits in between, so it is *not* simply `filterLastChanged +
+filterLife` at any given moment. Consequently, `date.py`'s `set_value`
+explicitly advances `remind_me_date` (via `util.add_months()`) alongside
+`filter_last_changed` when writing — setting only the last-changed field
+would leave the rolling due-date wherever it happened to have advanced to,
+and the reminder countdown wouldn't actually restart.
+
+All other fields (`enabled`, `filterLife`, `filterLifeUnits`, the
+`"furnaceFilter"` type string) are confirmed correct as originally guessed.
 
 ## Open thread: a custom dashboard card
 

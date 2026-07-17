@@ -373,12 +373,7 @@ class EcobeeComfortTemp(EcobeeBaseEntity, NumberEntity):
 
 
 class EcobeeFurnaceFilterReminderInterval(EcobeeBaseEntity, NumberEntity):
-    """How many months between furnace filter reminders.
-
-    Unverified field name (see pyecobee's set_equipment_reminder) --
-    ecobee's notificationSettings.equipment schema hasn't been checked
-    against a live payload for this integration.
-    """
+    """How many months between furnace filter reminders."""
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.BOX
