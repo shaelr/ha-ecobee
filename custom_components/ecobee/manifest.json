@@ -14,7 +14,7 @@
     "python-ecobee-api @ git+https://github.com/shaelr/python-ecobee-api.git@v0.7.0"
   ],
   "single_config_entry": true,
-  "version": "0.6.2",
+  "version": "0.7.0",
   "zeroconf": [
     {
       "type": "_ecobee._tcp.local."
