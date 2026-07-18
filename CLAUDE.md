@@ -292,10 +292,24 @@ a different conversation/session, referred to as "ecosee", not part of this
 repo) and was mid-way through deciding whether the current entity shape
 (10+ flat entities in the thermostat's Configuration section) is easy to
 build that card against, or whether the entities themselves should be
-restructured first. Nothing's been decided yet. That other session *has*
-produced at least one real, confirmed bug report back into this repo
-already (the schedule day-index offset, v0.4.3) — it's an active,
-productive channel, not just a hypothetical future integration. Ask the
-user for the card's actual YAML/code if picking this thread back up; it
-isn't saved anywhere in this repo or elsewhere on the local filesystem as
-of this writing.
+restructured first. Nothing's been decided yet. That other session is an
+active, productive channel, not just a hypothetical future integration --
+it's produced at least two real, confirmed fixes landed in this repo so far
+(the schedule day-index offset, v0.4.3; and the `hold_end_time` attribute
+below, requested specifically because the card's own ADR refuses to fake a
+hold's expiry time it can't actually back with real data).
+
+### `climate.Thermostat.hold_end_time` attribute
+
+Added specifically for the "ecosee" card's "until 5:28pm" style hold-expiry
+display. `Thermostat.hold_end_time` (a property, exposed in
+`extra_state_attributes`) returns the current hold's end time as an ISO
+8601 string (e.g. `"2026-07-18T17:28:00-04:00"`, using the thermostat's own
+`location.timeZone`, resolved the same way `switch.py`/`calendar.py`
+already do), or `None` if there's no active hold or the hold is indefinite
+(ecobee's `endDate` for an indefinite hold is a far-future placeholder --
+see `util.is_indefinite_hold` -- not a real expiry, so it's deliberately
+not exposed as one). This required adding an `operating_timezone` param to
+`Thermostat.__init__`, resolved in `climate.py`'s `async_setup_entry`
+exactly like the other platforms already do it, since `climate.py` hadn't
+needed it before this.

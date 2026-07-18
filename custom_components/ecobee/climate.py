@@ -1,6 +1,7 @@
 """Support for Ecobee Thermostats."""
 
 import collections
+from datetime import tzinfo
 from typing import Any, override
 
 import voluptuous as vol
@@ -36,6 +37,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from . import EcobeeConfigEntry, EcobeeData
@@ -165,7 +167,10 @@ async def async_setup_entry(
                 thermostat["name"],
                 thermostat["modelNumber"],
             )
-        entities.append(Thermostat(data, index, thermostat, hass))
+        operating_timezone = (
+            await dt_util.async_get_time_zone(thermostat["location"]["timeZone"])
+        ) or dt_util.get_default_time_zone()
+        entities.append(Thermostat(data, index, thermostat, hass, operating_timezone))
 
     async_add_entities(entities, True)
     _async_get_thermostats(hass).extend(entities)
@@ -221,12 +226,14 @@ class Thermostat(ClimateEntity):
         thermostat_index: int,
         thermostat: dict,
         hass: HomeAssistant,
+        operating_timezone: tzinfo,
     ) -> None:
         """Initialize the thermostat."""
         self.data = data
         self.thermostat_index = thermostat_index
         self.thermostat = thermostat
         self._attr_unique_id = self.thermostat["identifier"]
+        self._operating_timezone = operating_timezone
         self.vacation = None
         self._last_active_hvac_mode = HVACMode.HEAT_COOL
         self._last_hvac_mode_before_aux_heat = HVACMode.HEAT_COOL
@@ -404,6 +411,26 @@ class Thermostat(ClimateEntity):
         return None
 
     @property
+    def hold_end_time(self) -> str | None:
+        """Return the current hold's end time, as an ISO 8601 string.
+
+        None if there's no active hold, or if the hold is indefinite -- in
+        that case ecobee's endDate is a far-future placeholder (see
+        util.is_indefinite_hold), not a real expiry, so it isn't exposed
+        as one.
+        """
+        for event in self.thermostat["events"]:
+            if not event["running"] or event["type"] != "hold":
+                continue
+            if is_indefinite_hold(event["startDate"], event["endDate"]):
+                return None
+            end = dt_util.parse_datetime(
+                f"{event['endDate']} {event['endTime']}", raise_on_error=True
+            ).replace(tzinfo=self._operating_timezone)
+            return end.isoformat()
+        return None
+
+    @property
     @override
     def hvac_mode(self) -> HVACMode:
         """Return current operation."""
@@ -463,6 +490,7 @@ class Thermostat(ClimateEntity):
             ),
             "equipment_running": status,
             "fan_min_on_time": self.settings["fanMinOnTime"],
+            "hold_end_time": self.hold_end_time,
             ATTR_AVAILABLE_SENSORS: self.remote_sensor_devices,
             ATTR_ACTIVE_SENSORS: self.active_sensor_devices_in_preset_mode,
         }
